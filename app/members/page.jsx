@@ -26,7 +26,7 @@ export default function MembersPage() {
     setLoading(false);
   }, []);
 
-  // 🔒 Verificar sesión antes de cargar datos
+  // 🔒 Verificar sesión
   useEffect(() => {
     async function checkSession() {
       const {
@@ -35,18 +35,17 @@ export default function MembersPage() {
       } = await supabase.auth.getSession();
 
       if (error) {
-        console.error("❌ Auth Error:", error.message);
+        console.error("❌ Auth Error:", error);
         router.replace("/auth");
         return;
       }
 
       if (!session) {
-        console.log("🚫 Keine aktive Sitzung. Weiterleitung...");
+        console.log("🚫 Keine aktive Sitzung.");
         router.replace("/auth");
         return;
       }
 
-      console.log("✅ Sitzung erkannt. Mitglieder werden geladen...");
       fetchMembers();
     }
 
@@ -56,7 +55,6 @@ export default function MembersPage() {
   // 🚪 Logout
   async function handleLogout() {
     await supabase.auth.signOut();
-    console.log("🚪 Logout erfolgreich. Weiterleitung...");
     router.replace("/auth");
   }
 
@@ -65,7 +63,7 @@ export default function MembersPage() {
     try {
       const next = (currentPoints ?? 0) + 10;
 
-      // 1️⃣ Actualiza puntos en members
+      // 1️⃣ Actualiza puntos
       const { error: updateErr } = await supabase
         .from("members")
         .update({ points: next })
@@ -76,13 +74,13 @@ export default function MembersPage() {
         return;
       }
 
-      // 2️⃣ Registra la transacción en la tabla transactions
+      // 2️⃣ Registrar transacción (FINAL)
       const { error: txErr } = await supabase.from("transactions").insert([
         {
           member_id: memberId,
-          points_delta: 10,
-          reason: "manual_add",
-          source: "dashboard",
+          points_added: 10, // 👍 columna real
+          amount: 0, // 👍 requerido en tu tabla
+          source: "dashboard", // 👍 válido con tu schema
         },
       ]);
 
@@ -91,10 +89,10 @@ export default function MembersPage() {
         return;
       }
 
-      // 3️⃣ Refresca la lista
+      // 3️⃣ Refrescar lista
       await fetchMembers();
 
-      console.log("✅ Puntos sumados y transacción registrada correctamente.");
+      console.log("✅ Puntos sumados y transacción registrada.");
     } catch (err) {
       console.error("💥 Error general:", err);
     }
@@ -128,7 +126,6 @@ export default function MembersPage() {
         padding: "3rem 2rem",
       }}
     >
-      {/* 🔍 Verificación rápida de Tailwind */}
       <h1 className="text-bitepurple text-3xl font-bold mb-8">
         ✅ Tailwind funktioniert!
       </h1>
@@ -286,7 +283,6 @@ export default function MembersPage() {
         )}
       </section>
 
-      {/* Footer */}
       <footer
         style={{
           marginTop: "3rem",
@@ -296,8 +292,7 @@ export default function MembersPage() {
           fontSize: "0.85rem",
         }}
       >
-        © {new Date().getFullYear()} BiteBack — Intelligentes Treueprogramm für
-        Restaurants.
+        © {new Date().getFullYear()} BiteBack
       </footer>
     </main>
   );
