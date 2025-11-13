@@ -60,21 +60,44 @@ export default function MembersPage() {
     router.replace("/auth");
   }
 
-  // 🏅 Añadir puntos
+  // 🏅 Añadir puntos + registrar transacción
   async function handleAddPoints(memberId, currentPoints) {
-    const { data, error } = await supabase
-      .from("members")
-      .update({ points: (currentPoints ?? 0) + 10 })
-      .eq("id", memberId)
-      .select();
+    try {
+      const next = (currentPoints ?? 0) + 10;
 
-    if (error) {
-      console.error("❌ Error al sumar puntos:", error.message);
-      return;
+      // 1️⃣ Actualiza puntos en members
+      const { error: updateErr } = await supabase
+        .from("members")
+        .update({ points: next })
+        .eq("id", memberId);
+
+      if (updateErr) {
+        console.error("❌ Error al sumar puntos:", updateErr.message);
+        return;
+      }
+
+      // 2️⃣ Registra la transacción en la tabla transactions
+      const { error: txErr } = await supabase.from("transactions").insert([
+        {
+          member_id: memberId,
+          points_delta: 10,
+          reason: "manual_add",
+          source: "dashboard",
+        },
+      ]);
+
+      if (txErr) {
+        console.error("⚠️ Error al registrar transacción:", txErr.message);
+        return;
+      }
+
+      // 3️⃣ Refresca la lista
+      await fetchMembers();
+
+      console.log("✅ Puntos sumados y transacción registrada correctamente.");
+    } catch (err) {
+      console.error("💥 Error general:", err);
     }
-
-    console.log("✅ Puntos actualizados:", data);
-    fetchMembers(); // refrescar tabla
   }
 
   if (loading) {
@@ -105,7 +128,7 @@ export default function MembersPage() {
         padding: "3rem 2rem",
       }}
     >
-        {/* 🔍 Verificación rápida de Tailwind */}
+      {/* 🔍 Verificación rápida de Tailwind */}
       <h1 className="text-bitepurple text-3xl font-bold mb-8">
         ✅ Tailwind funktioniert!
       </h1>

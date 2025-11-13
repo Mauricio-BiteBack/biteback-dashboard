@@ -1,28 +1,32 @@
 "use client";
+
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export default function Home() {
+export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (data?.session) {
-        // Si ya tiene sesión, redirige al dashboard
-        router.push("/members");
-      } else {
-        // Si no, lo manda al login
-        router.push("/auth");
+    async function check() {
+      const { data } = await supabase.auth.getSession();
+
+      // Si no hay sesión → a login
+      if (!data.session) {
+        router.replace("/auth");
+        return;
       }
-    };
-    handleSession();
+
+      // Si hay sesión → directamente a /members
+      router.replace("/members");
+    }
+
+    check();
   }, [router]);
 
   return (
@@ -32,16 +36,12 @@ export default function Home() {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        flexDirection: "column",
         backgroundColor: "#fffbf7",
         color: "#072049",
-        fontFamily: "sans-serif",
+        fontFamily: "Inter, sans-serif",
       }}
     >
-      <h1 style={{ fontSize: "1.8rem", color: "#072049" }}>
-        🔄 Bitte warten...
-      </h1>
-      <p>Du wirst gleich weitergeleitet.</p>
+      <h2>Wird geladen...</h2>
     </main>
   );
 }

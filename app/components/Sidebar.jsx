@@ -11,9 +11,15 @@ export default function Sidebar() {
           <Link href="/members" className="flex items-center gap-3 hover:text-[#fd6429]">
             <Users size={18} /> Mitglieder
           </Link>
+
+          <Link href="/transactions" className="flex items-center gap-3 hover:text-[#fd6429]">
+            📊 Transaktionen
+          </Link>
+
           <Link href="/rewards" className="flex items-center gap-3 hover:text-[#fd6429]">
             <Gift size={18} /> Belohnungen
           </Link>
+
           <Link href="/scan" className="flex items-center gap-3 hover:text-[#fd6429]">
             <Scan size={18} /> Scan
           </Link>
