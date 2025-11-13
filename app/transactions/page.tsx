@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import Topbar from "../components/Topbar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,11 +13,12 @@ const supabase = createClient(
 export default function TransactionsPage() {
   const router = useRouter();
 
-  // FIX IMPORTANTE: evitar never[] → usar any[]
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ------------------------
   // Verificar sesión
+  // ------------------------
   useEffect(() => {
     async function load() {
       const { data } = await supabase.auth.getSession();
@@ -29,7 +31,9 @@ export default function TransactionsPage() {
     load();
   }, []);
 
+  // ------------------------
   // Cargar transacciones
+  // ------------------------
   async function fetchTransactions() {
     setLoading(true);
 
@@ -39,7 +43,7 @@ export default function TransactionsPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(error);
+      console.error("⚠️ Fehler:", error);
       setTransactions([]);
     } else {
       setTransactions(data || []);
@@ -57,24 +61,28 @@ export default function TransactionsPage() {
   }
 
   return (
-    <main>
-      <h1 className="text-3xl font-bold mb-8">Transaktionen</h1>
+    <main className="px-8 py-6">
+      <Topbar />
+
+      <h1 className="text-3xl font-extrabold text-bitepurple mb-6">
+        Transaktionen
+      </h1>
 
       {transactions.length === 0 ? (
-        <p>Keine Transaktionen gefunden.</p>
+        <p className="text-lg text-gray-600">Keine Transaktionen gefunden.</p>
       ) : (
-        <table className="w-full border-collapse">
-          <thead className="bg-purple-100">
+        <table className="w-full border-collapse shadow-sm rounded-lg overflow-hidden">
+          <thead className="bg-purple-100 text-gray-800">
             <tr>
               <th className="p-3 text-left">Datum</th>
               <th className="p-3 text-left">E-Mail</th>
               <th className="p-3 text-left">Δ Punkte</th>
-              <th className="p-3 text-left">Grund</th>
               <th className="p-3 text-left">Quelle</th>
             </tr>
           </thead>
+
           <tbody>
-            {transactions.map((t: any, i: number) => (
+            {transactions.map((t, i) => (
               <tr
                 key={t.id}
                 className={i % 2 === 0 ? "bg-white" : "bg-purple-50"}
@@ -85,14 +93,12 @@ export default function TransactionsPage() {
 
                 <td className="p-3">{t.members?.email ?? "–"}</td>
 
-                {/* FIX: Mostrar points_added */}
-                <td className="p-3 font-bold">
+                <td className="p-3 font-bold text-bitepurple">
                   {t.points_added > 0
                     ? `+${t.points_added}`
                     : t.points_added}
                 </td>
 
-                <td className="p-3">{t.reason ?? "–"}</td>
                 <td className="p-3">{t.source ?? "–"}</td>
               </tr>
             ))}
