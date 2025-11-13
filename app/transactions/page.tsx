@@ -82,10 +82,16 @@ export default function TransactionsPage() {
                 <td className="p-3">
                   {new Date(t.created_at).toLocaleString("de-DE")}
                 </td>
+
                 <td className="p-3">{t.members?.email ?? "–"}</td>
+
+                {/* FIX: Mostrar points_added */}
                 <td className="p-3 font-bold">
-                  {t.points_delta > 0 ? `+${t.points_delta}` : t.points_delta}
+                  {t.points_added > 0
+                    ? `+${t.points_added}`
+                    : t.points_added}
                 </td>
+
                 <td className="p-3">{t.reason ?? "–"}</td>
                 <td className="p-3">{t.source ?? "–"}</td>
               </tr>
