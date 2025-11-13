@@ -11,7 +11,9 @@ const supabase = createClient(
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState([]);
+
+  // FIX IMPORTANTE: evitar never[] → usar any[]
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Verificar sesión
@@ -82,9 +84,7 @@ export default function TransactionsPage() {
                 </td>
                 <td className="p-3">{t.members?.email ?? "–"}</td>
                 <td className="p-3 font-bold">
-                  {t.points_delta > 0
-                    ? `+${t.points_delta}`
-                    : t.points_delta}
+                  {t.points_delta > 0 ? `+${t.points_delta}` : t.points_delta}
                 </td>
                 <td className="p-3">{t.reason ?? "–"}</td>
                 <td className="p-3">{t.source ?? "–"}</td>
