@@ -11,165 +11,113 @@ const supabase = createClient(
 
 export default function RewardsPage() {
   const router = useRouter();
+
   const [rewards, setRewards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [newReward, setNewReward] = useState({ name: "", cost: 0 });
-  const [busy, setBusy] = useState(false);
 
-  // 🔥 Modal para canje
-  const [showModal, setShowModal] = useState(false);
+  // Modal states
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [selectedReward, setSelectedReward] = useState(null);
-  const [memberEmail, setMemberEmail] = useState("");
+  const [redeemEmail, setRedeemEmail] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
-  const [redeemError, setRedeemError] = useState("");
-  const [redeemSuccess, setRedeemSuccess] = useState("");
 
-  // 🔹 1️⃣ Cargar rewards
+  useEffect(() => {
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) {
+        router.replace("/auth");
+      } else {
+        loadRewards();
+      }
+    }
+    init();
+  }, [router]);
+
   async function loadRewards() {
     setLoading(true);
     const { data, error } = await supabase
       .from("rewards")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) console.error(error);
-    else setRewards(data || []);
+
+    if (!error) setRewards(data || []);
     setLoading(false);
   }
 
-  // 🔹 2️⃣ Verificar sesión + cargar lista
-  useEffect(() => {
-    async function init() {
-      const { data } = await supabase.auth.getSession();
-      if (!data?.session) router.replace("/auth");
-      else loadRewards();
-    }
-    init();
-  }, [router]);
-
-  // 🔹 Crear reward
-  async function handleCreateReward(e) {
-    e.preventDefault();
-    if (!newReward.name || newReward.cost <= 0)
-      return alert("Bitte alle Felder ausfüllen.");
-
-    setBusy(true);
-    const { error } = await supabase
-      .from("rewards")
-      .insert([{ name: newReward.name, cost: newReward.cost, active: true }]);
-    setBusy(false);
-
-    if (error) alert("Fehler beim Erstellen.");
-    else {
-      setNewReward({ name: "", cost: 0 });
-      setShowForm(false);
-      loadRewards();
-    }
-  }
-
-  // 🔹 Activar / desactivar
-  async function toggleActive(id, active) {
-    await supabase.from("rewards").update({ active: !active }).eq("id", id);
-    loadRewards();
-  }
-
-  // 🔹 Borrar reward
-  async function deleteReward(id) {
-    if (!confirm("Diese Belohnung wirklich löschen?")) return;
-    await supabase.from("rewards").delete().eq("id", id);
-    loadRewards();
-  }
-
-  // 🔥 Abrir modal de canje
+  // 🔥 1) Abrir modal
   function openRedeemModal(reward) {
     setSelectedReward(reward);
-    setMemberEmail("");
-    setRedeemError("");
-    setRedeemSuccess("");
-    setShowModal(true);
+    setShowRedeemModal(true);
   }
 
-  // 🔥 Canjear recompensa
-  async function handleRedeem() {
-    if (!memberEmail.trim()) {
-      setRedeemError("Bitte E-Mail eingeben.");
-      return;
-    }
-
+  // 🔥 2) Ejecutar canje
+  async function handleRedeemReward() {
+    if (!redeemEmail) return alert("Bitte E-Mail eingeben.");
     setRedeemLoading(true);
-    setRedeemError("");
-    setRedeemSuccess("");
 
-    // 1️⃣ Buscar miembro por email
-    const { data: member, error: memberErr } = await supabase
-      .from("members")
-      .select("*")
-      .eq("email", memberEmail.trim().toLowerCase())
-      .maybeSingle();
+    try {
+      // 1. Buscar miembro por email
+      const { data: memberData, error: memberErr } = await supabase
+        .from("members")
+        .select("*")
+        .eq("email", redeemEmail.trim())
+        .single();
 
-    if (memberErr || !member) {
-      setRedeemError("Mitglied nicht gefunden.");
-      setRedeemLoading(false);
-      return;
+      if (memberErr || !memberData) {
+        alert("Mitglied nicht gefunden.");
+        setRedeemLoading(false);
+        return;
+      }
+
+      // 2. Validar puntos suficientes
+      if (memberData.points < selectedReward.cost) {
+        alert("Nicht genug Punkte!");
+        setRedeemLoading(false);
+        return;
+      }
+
+      const newPoints = memberData.points - selectedReward.cost;
+
+      // 3. Restar puntos
+      const { error: updateErr } = await supabase
+        .from("members")
+        .update({ points: newPoints })
+        .eq("id", memberData.id);
+
+      if (updateErr) {
+        alert("Fehler beim Abziehen der Punkte.");
+        setRedeemLoading(false);
+        return;
+      }
+
+      // 4. Insertar transacción
+      await supabase.from("transactions").insert([
+        {
+          member_id: memberData.id,
+          points_added: -selectedReward.cost,
+          reason: "reward_redeem",
+          source: "dashboard",
+        },
+      ]);
+
+      // 5. Cerrar modal + refrescar
+      setShowRedeemModal(false);
+      setRedeemEmail("");
+      loadRewards();
+
+      alert("Belohnung erfolgreich eingelöst! 🎉");
+    } catch (e) {
+      console.error(e);
+      alert("Fehler.");
     }
 
-    // 2️⃣ Verificar puntos suficientes
-    if ((member.points ?? 0) < selectedReward.cost) {
-      setRedeemError("Nicht genug Punkte.");
-      setRedeemLoading(false);
-      return;
-    }
-
-    const newPoints = member.points - selectedReward.cost;
-
-    // 3️⃣ Restar puntos
-    const { error: updateErr } = await supabase
-      .from("members")
-      .update({ points: newPoints })
-      .eq("id", member.id);
-
-    if (updateErr) {
-      setRedeemError("Fehler beim Aktualisieren der Punkte.");
-      setRedeemLoading(false);
-      return;
-    }
-
-    // 4️⃣ Registrar transacción negativa
-    const { error: txErr } = await supabase.from("transactions").insert([
-      {
-        member_id: member.id,
-        points_added: -selectedReward.cost,
-        reason: "reward_redeem",
-        source: "dashboard",
-      },
-    ]);
-
-    if (txErr) {
-      setRedeemError("Fehler beim Anlegen der Transaktion.");
-      setRedeemLoading(false);
-      return;
-    }
-
-    setRedeemSuccess("Belohnung erfolgreich eingelöst! 🎉");
     setRedeemLoading(false);
-    loadRewards();
   }
 
-  // 🔄 Loading
   if (loading) {
     return (
-      <main
-        style={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#fffbf7",
-          fontFamily: "Inter, sans-serif",
-          color: "#072049",
-        }}
-      >
-        <h2>Wird geladen...</h2>
+      <main className="h-screen flex items-center justify-center text-2xl">
+        Wird geladen...
       </main>
     );
   }
@@ -179,223 +127,101 @@ export default function RewardsPage() {
       style={{
         minHeight: "100vh",
         backgroundColor: "#fffbf7",
-        fontFamily: "Inter, sans-serif",
-        color: "#072049",
         padding: "3rem 2rem",
+        fontFamily: "Inter, sans-serif",
       }}
     >
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "2.5rem",
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontSize: "2.2rem",
-              fontWeight: "800",
-              margin: 0,
-              color: "#072049",
-            }}
-          >
-            BiteBack Belohnungen 🎁
-          </h1>
-          <p style={{ color: "#2a2a2e", marginTop: "0.5rem", fontSize: "1rem" }}>
-            Erstelle und verwalte deine Prämien.
-          </p>
-        </div>
+      <h1 className="text-3xl font-extrabold text-[#072049] mb-6">
+        BiteBack Belohnungen 🎁
+      </h1>
 
-        <button
-          style={{
-            backgroundColor: "#742cff",
-            border: "none",
-            borderRadius: "10px",
-            color: "white",
-            fontWeight: "600",
-            padding: "0.8rem 1.6rem",
-            cursor: "pointer",
-            fontSize: "0.95rem",
-            boxShadow: "0 4px 12px rgba(116,44,255,0.25)",
-          }}
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? "Schließen" : "+ Neue Belohnung"}
-        </button>
-      </header>
-
-      {/* FORMULARIO NUEVO REWARD */}
-      {showForm && (
-        <form
-          onSubmit={handleCreateReward}
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: "16px",
-            boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-            padding: "2rem",
-            marginBottom: "2rem",
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>Neue Belohnung erstellen</h3>
-
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-            <input
-              type="text"
-              placeholder="Name"
-              value={newReward.name}
-              onChange={(e) =>
-                setNewReward({ ...newReward, name: e.target.value })
-              }
-              style={inputStyle}
-            />
-            <input
-              type="number"
-              placeholder="Kosten"
-              value={newReward.cost}
-              onChange={(e) =>
-                setNewReward({ ...newReward, cost: Number(e.target.value) })
-              }
-              style={inputStyle}
-            />
-            <button type="submit" disabled={busy} style={saveBtnStyle(busy)}>
-              Speichern
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* TABLA */}
+      {/* Tabla */}
       <section
         style={{
           backgroundColor: "white",
           borderRadius: "16px",
-          boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
           padding: "2rem",
         }}
       >
-        {rewards.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#2a2a2e" }}>
-            Keine Belohnungen gefunden.
-          </p>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead style={{ backgroundColor: "#f4f2ff" }}>
-              <tr>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Kosten</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Aktion</th>
+        <table className="w-full border-collapse">
+          <thead className="bg-purple-100">
+            <tr>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Kosten</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Aktion</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rewards.map((r, i) => (
+              <tr
+                key={r.id}
+                className={i % 2 === 0 ? "bg-white" : "bg-purple-50"}
+              >
+                <td className="p-3">{r.name}</td>
+                <td className="p-3">{r.cost}</td>
+                <td className="p-3">{r.active ? "Aktiv" : "Inaktiv"}</td>
+
+                <td className="p-3">
+                  {/* 🔥 Einlösen */}
+                  <button
+                    onClick={() => openRedeemModal(r)}
+                    className="px-3 py-1 rounded-md font-bold text-white mr-2"
+                    style={{ backgroundColor: "#742cff" }}
+                  >
+                    Einlösen
+                  </button>
+
+                  {/* Deaktivieren */}
+                  <button
+                    className="px-3 py-1 rounded-md font-bold text-white"
+                    style={{ backgroundColor: "#072049" }}
+                  >
+                    Deaktivieren
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rewards.map((r, i) => (
-                <tr
-                  key={r.id}
-                  style={{
-                    backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8f6ff",
-                  }}
-                >
-                  <td style={tdStyle}>{r.name}</td>
-                  <td style={tdStyle}>{r.cost}</td>
-                  <td style={{ ...tdStyle, color: r.active ? "green" : "red" }}>
-                    {r.active ? "Aktiv" : "Inaktiv"}
-                  </td>
-
-                  <td style={tdStyle}>
-                    <button
-                      onClick={() => openRedeemModal(r)}
-                      style={smallBtnStyle("#742cff")}
-                    >
-                      Einlösen
-                    </button>
-
-                    <button
-                      onClick={() => toggleActive(r.id, r.active)}
-                      style={smallBtnStyle("#072049")}
-                    >
-                      {r.active ? "Deaktivieren" : "Aktivieren"}
-                    </button>
-
-                    <button
-                      onClick={() => deleteReward(r.id)}
-                      style={smallBtnStyle("#fd6429")}
-                    >
-                      Löschen
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
       </section>
 
-      {/* MODAL DE CANJE */}
-      {showModal && (
+      {/* 🔥 MODAL DE REDEEM */}
+      {showRedeemModal && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
         >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "2rem",
-              borderRadius: "16px",
-              width: "90%",
-              maxWidth: "400px",
-            }}
-          >
-            <h2 style={{ fontWeight: 700, marginBottom: "1rem" }}>
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">
               {selectedReward?.name} einlösen
             </h2>
 
-            <p style={{ marginBottom: "1rem" }}>
-              Benötigte Punkte:{" "}
-              <strong>{selectedReward?.cost}</strong>
-            </p>
+            <p className="mb-2">Mitglied E-Mail:</p>
 
             <input
               type="email"
-              placeholder="Mitglied E-Mail"
-              value={memberEmail}
-              onChange={(e) => setMemberEmail(e.target.value)}
-              style={inputStyle}
+              value={redeemEmail}
+              onChange={(e) => setRedeemEmail(e.target.value)}
+              placeholder="kunde@email.com"
+              className="w-full p-2 border rounded mb-4"
             />
 
-            {redeemError && (
-              <p style={{ color: "red", marginTop: "0.5rem" }}>
-                {redeemError}
-              </p>
-            )}
-            {redeemSuccess && (
-              <p style={{ color: "green", marginTop: "0.5rem" }}>
-                {redeemSuccess}
-              </p>
-            )}
-
-            <div
-              style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1.5rem" }}
-            >
+            <div className="flex justify-end gap-3">
               <button
-                onClick={() => setShowModal(false)}
-                style={smallBtnStyle("#072049")}
+                onClick={() => setShowRedeemModal(false)}
+                className="px-4 py-2 rounded bg-gray-300"
               >
-                Schließen
+                Abbrechen
               </button>
 
               <button
-                onClick={handleRedeem}
+                onClick={handleRedeemReward}
                 disabled={redeemLoading}
-                style={smallBtnStyle("#742cff")}
+                className="px-4 py-2 rounded font-bold text-white"
+                style={{
+                  backgroundColor: redeemLoading ? "#aaa" : "#742cff",
+                }}
               >
                 {redeemLoading ? "..." : "Bestätigen"}
               </button>
@@ -406,53 +232,3 @@ export default function RewardsPage() {
     </main>
   );
 }
-
-// --------------------------------------
-// estilo helpers
-// --------------------------------------
-
-const thStyle = {
-  padding: "1rem",
-  textAlign: "left",
-  fontWeight: "700",
-  color: "#072049",
-  borderBottom: "2px solid #eee",
-};
-
-const tdStyle = {
-  padding: "1rem",
-  color: "#2a2a2e",
-  borderBottom: "1px solid #f0f0f0",
-};
-
-function smallBtnStyle(color) {
-  return {
-    backgroundColor: color,
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    padding: "0.4rem 0.8rem",
-    cursor: "pointer",
-    fontWeight: "600",
-    marginRight: "0.5rem",
-  };
-}
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.8rem",
-  borderRadius: "8px",
-  border: "1px solid #ccc",
-  fontSize: "1rem",
-  marginBottom: "0.8rem",
-};
-
-const saveBtnStyle = (busy) => ({
-  backgroundColor: busy ? "#ccc" : "#742cff",
-  color: "white",
-  border: "none",
-  borderRadius: "8px",
-  padding: "0.8rem 1.2rem",
-  cursor: busy ? "default" : "pointer",
-  fontWeight: "600",
-});
