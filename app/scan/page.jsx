@@ -1,9 +1,11 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
+// 🔧 FIX: quitar los "!" (solo se pueden usar en TS, no en JSX)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -11,15 +13,21 @@ const supabase = createClient(
 
 export default function ScanPage() {
   const router = useRouter();
+
   const [scanned, setScanned] = useState(null); // { external_id, member }
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
+
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
 
-  // ✅ Primero: define handleRawText arriba (para evitar el error)
+  // -------------------------------------------------
+  // 1) PROCESAR TEXTO DEL QR
+  // -------------------------------------------------
   async function handleRawText(text) {
     let externalId = null;
+
+    // Formato:  "BB:XXXXX"
     if (text?.startsWith("BB:")) {
       externalId = text.split("BB:")[1]?.trim();
     } else {
@@ -31,7 +39,7 @@ export default function ScanPage() {
       return;
     }
 
-    // 🔍 Buscar miembro
+    // Buscar miembro
     const { data, error } = await supabase
       .from("members")
       .select("*")
@@ -45,7 +53,6 @@ export default function ScanPage() {
     }
 
     if (!data) {
-      alert(`Kein Mitglied mit external_id: ${externalId} gefunden.`);
       setScanned({ external_id: externalId, member: null });
       return;
     }
@@ -53,7 +60,9 @@ export default function ScanPage() {
     setScanned({ external_id: externalId, member: data });
   }
 
-  // 🔒 Verifica sesión
+  // -------------------------------------------------
+  // 2) VERIFICAR SESIÓN
+  // -------------------------------------------------
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -61,7 +70,9 @@ export default function ScanPage() {
     })();
   }, [router]);
 
-  // 🎥 Inicializa la cámara + lector
+  // -------------------------------------------------
+  // 3) INICIALIZAR CÁMARA Y ESCÁNER
+  // -------------------------------------------------
   useEffect(() => {
     const codeReader = new BrowserMultiFormatReader();
     codeReaderRef.current = codeReader;
@@ -69,22 +80,27 @@ export default function ScanPage() {
     async function start() {
       try {
         const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+
         if (!devices.length) {
           setCameraError("Keine Kamera gefunden.");
           return;
         }
+
         const deviceId = devices[0].deviceId;
+
         const preview = await codeReader.decodeOnceFromVideoDevice(
           deviceId,
           videoRef.current
         );
-        handleRawText(preview.getText()); // ✅ ya definida arriba
+
+        handleRawText(preview.getText());
       } catch (e) {
         setCameraError(String(e?.message ?? e));
       }
     }
 
     start();
+
     return () => {
       try {
         codeReader.reset();
@@ -92,19 +108,24 @@ export default function ScanPage() {
     };
   }, []);
 
-  // ➕ Sumar puntos
+  // -------------------------------------------------
+  // 4) SUMAR PUNTOS
+  // -------------------------------------------------
   async function addPoints(delta = 10) {
     if (!scanned?.member?.id) return;
+
     setBusy(true);
 
     const memberId = scanned.member.id;
     const current = scanned.member.points ?? 0;
 
+    // Update points
     const { error: upErr } = await supabase
       .from("members")
       .update({ points: current + delta })
       .eq("id", memberId);
 
+    // Insert transaction
     const { error: txErr } = await supabase.from("transactions").insert([
       {
         member_id: memberId,
@@ -121,6 +142,7 @@ export default function ScanPage() {
       return;
     }
 
+    // Refresh member
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
@@ -131,24 +153,30 @@ export default function ScanPage() {
     setBusy(false);
   }
 
-  // 🎁 Canjear reward
+  // -------------------------------------------------
+  // 5) CANJEAR PREMIO
+  // -------------------------------------------------
   async function redeemReward(rewardCost = 50) {
     if (!scanned?.member?.id) return;
+
     setBusy(true);
 
     const memberId = scanned.member.id;
     const current = scanned.member.points ?? 0;
+
     if (current < rewardCost) {
       alert("Nicht genug Punkte.");
       setBusy(false);
       return;
     }
 
+    // Update points
     const { error: upErr } = await supabase
       .from("members")
       .update({ points: current - rewardCost })
       .eq("id", memberId);
 
+    // Insert transaction
     const { error: txErr } = await supabase.from("transactions").insert([
       {
         member_id: memberId,
@@ -165,6 +193,7 @@ export default function ScanPage() {
       return;
     }
 
+    // Refresh member
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
@@ -175,110 +204,112 @@ export default function ScanPage() {
     setBusy(false);
   }
 
-  // 🖼️ Render UI
+  // -------------------------------------------------
+  // 6) UI
+  // -------------------------------------------------
   return (
     <main
       style={{
         minHeight: "100vh",
         backgroundColor: "#fffbf7",
-        fontFamily: "Inter, sans-serif",
-        color: "#072049",
         padding: "2rem",
+        color: "#072049",
+        fontFamily: "Inter, sans-serif",
       }}
     >
-      <h1 style={{ fontSize: "1.6rem", fontWeight: 800, marginBottom: "1rem" }}>
+      <h1 style={{ fontSize: "1.7rem", fontWeight: 800, marginBottom: "1rem" }}>
         QR-Scan · Punkte & Einlösen
       </h1>
 
+      {/* ERROR CAMARA */}
       {cameraError ? (
-        <div style={{ color: "#fd6429" }}>Kamerafehler: {cameraError}</div>
+        <div style={{ color: "#fd6429", fontWeight: 600 }}>
+          Kamerafehler: {cameraError}
+        </div>
       ) : (
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "1.5rem",
-            alignItems: "start",
           }}
         >
-          {/* Cámara */}
+          {/* VIDEO */}
           <div
             style={{
-              background: "#fff",
+              background: "white",
+              padding: "1rem",
               borderRadius: 16,
               boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-              padding: "1rem",
             }}
           >
             <video
               ref={videoRef}
+              muted
+              playsInline
               style={{
                 width: "100%",
                 borderRadius: 12,
-                background: "#000",
+                background: "black",
               }}
-              muted
-              playsInline
             />
             <p style={{ marginTop: "0.5rem", color: "#2a2a2e" }}>
               Richte die Kamera auf den Kunden-QR.
             </p>
           </div>
 
-          {/* Resultado del escaneo */}
+          {/* RESULTADO */}
           <div
             style={{
-              background: "#fff",
+              background: "white",
+              padding: "1.2rem",
               borderRadius: 16,
               boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-              padding: "1.2rem",
               minHeight: 240,
             }}
           >
             {!scanned ? (
               <p style={{ color: "#2a2a2e" }}>
-                Noch nichts gescannt. Sobald ein QR erkannt wird, erscheint hier
-                das Mitglied.
+                Noch nichts gescannt. Warte auf einen QR-Code…
               </p>
             ) : scanned.member ? (
               <>
-                <h3 style={{ marginTop: 0 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 4 }}>
                   {scanned.member.first_name} {scanned.member.last_name}
                 </h3>
-                <p style={{ margin: "4px 0" }}>{scanned.member.email}</p>
+                <p style={{ margin: 0 }}>{scanned.member.email}</p>
                 <p style={{ margin: "4px 0" }}>
                   Punkte: <b>{scanned.member.points ?? 0}</b>
                 </p>
 
-                <div
-                  style={{ display: "flex", gap: "0.8rem", marginTop: "1rem" }}
-                >
+                <div style={{ display: "flex", gap: "0.8rem", marginTop: 16 }}>
                   <button
                     disabled={busy}
                     onClick={() => addPoints(10)}
                     style={{
-                      backgroundColor: busy ? "#ccc" : "#742cff",
-                      color: "#fff",
-                      border: "none",
+                      background: busy ? "#ccc" : "#742cff",
+                      color: "white",
                       borderRadius: 10,
                       padding: "0.8rem 1.2rem",
-                      cursor: busy ? "default" : "pointer",
+                      border: "none",
                       fontWeight: 600,
+                      cursor: busy ? "default" : "pointer",
                     }}
                   >
                     +10 Punkte
                   </button>
+
                   <button
                     disabled={busy}
                     onClick={() => redeemReward(50)}
                     style={{
-                      backgroundColor: busy ? "#ccc" : "#fd6429",
-                      color: "#fff",
-                      border: "none",
+                      background: busy ? "#ccc" : "#fd6429",
+                      color: "white",
                       borderRadius: 10,
                       padding: "0.8rem 1.2rem",
-                      cursor: busy ? "default" : "pointer",
+                      border: "none",
                       fontWeight: 600,
+                      cursor: busy ? "default" : "pointer",
                     }}
                   >
                     50 einlösen
