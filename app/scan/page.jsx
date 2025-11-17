@@ -5,7 +5,7 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
-// 🔧 FIX: quitar los "!" (solo se pueden usar en TS, no en JSX)
+// 🔧 FIX: quitar los "!" (solo se usan en TS, no en JSX)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -14,7 +14,7 @@ const supabase = createClient(
 export default function ScanPage() {
   const router = useRouter();
 
-  const [scanned, setScanned] = useState(null); // { external_id, member }
+  const [scanned, setScanned] = useState(null); 
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,28 +22,27 @@ export default function ScanPage() {
   const codeReaderRef = useRef(null);
 
   // -------------------------------------------------
-  // 1) PROCESAR TEXTO DEL QR
+  // 1) PROCESAR TEXTO DEL QR → EMAIL
   // -------------------------------------------------
   async function handleRawText(text) {
-    let externalId = null;
+    let extracted = null;
 
-    // Formato:  "BB:XXXXX"
     if (text?.startsWith("BB:")) {
-      externalId = text.split("BB:")[1]?.trim();
+      extracted = text.split("BB:")[1]?.trim();
     } else {
-      externalId = text?.trim();
+      extracted = text?.trim();
     }
 
-    if (!externalId) {
+    if (!extracted) {
       alert("Ungültiger QR-Code.");
       return;
     }
 
-    // Buscar miembro
+    // Buscar miembro por EMAIL en lugar de external_id
     const { data, error } = await supabase
       .from("members")
       .select("*")
-      .eq("external_id", externalId)
+      .eq("email", extracted)
       .maybeSingle();
 
     if (error) {
@@ -53,11 +52,11 @@ export default function ScanPage() {
     }
 
     if (!data) {
-      setScanned({ external_id: externalId, member: null });
+      setScanned({ email: extracted, member: null });
       return;
     }
 
-    setScanned({ external_id: externalId, member: data });
+    setScanned({ email: extracted, member: data });
   }
 
   // -------------------------------------------------
@@ -100,7 +99,6 @@ export default function ScanPage() {
     }
 
     start();
-
     return () => {
       try {
         codeReader.reset();
@@ -119,13 +117,11 @@ export default function ScanPage() {
     const memberId = scanned.member.id;
     const current = scanned.member.points ?? 0;
 
-    // Update points
     const { error: upErr } = await supabase
       .from("members")
       .update({ points: current + delta })
       .eq("id", memberId);
 
-    // Insert transaction
     const { error: txErr } = await supabase.from("transactions").insert([
       {
         member_id: memberId,
@@ -142,7 +138,7 @@ export default function ScanPage() {
       return;
     }
 
-    // Refresh member
+    // Refrescar datos
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
@@ -170,13 +166,12 @@ export default function ScanPage() {
       return;
     }
 
-    // Update points
+    // Restar puntos
     const { error: upErr } = await supabase
       .from("members")
       .update({ points: current - rewardCost })
       .eq("id", memberId);
 
-    // Insert transaction
     const { error: txErr } = await supabase.from("transactions").insert([
       {
         member_id: memberId,
@@ -193,7 +188,6 @@ export default function ScanPage() {
       return;
     }
 
-    // Refresh member
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
@@ -221,7 +215,6 @@ export default function ScanPage() {
         QR-Scan · Punkte & Einlösen
       </h1>
 
-      {/* ERROR CAMARA */}
       {cameraError ? (
         <div style={{ color: "#fd6429", fontWeight: 600 }}>
           Kamerafehler: {cameraError}
@@ -318,8 +311,7 @@ export default function ScanPage() {
               </>
             ) : (
               <p style={{ color: "#fd6429" }}>
-                Mitglied mit external_id <b>{scanned.external_id}</b> nicht
-                gefunden.
+                Mitglied mit Email <b>{scanned.email}</b> nicht gefunden.
               </p>
             )}
           </div>
