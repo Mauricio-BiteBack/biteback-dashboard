@@ -13,7 +13,7 @@ const supabase = createClient(
 export default function ScanPage() {
   const router = useRouter();
 
-  const [scanned, setScanned] = useState(null);
+  const [scanned, setScanned] = useState(null); // { email, member }
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +37,7 @@ export default function ScanPage() {
       return;
     }
 
+    // Buscar miembro por EMAIL
     const { data, error } = await supabase
       .from("members")
       .select("*")
@@ -44,7 +45,7 @@ export default function ScanPage() {
       .maybeSingle();
 
     if (error) {
-      console.error("Load error:", error);
+      console.error(error);
       alert("Fehler beim Laden des Mitglieds.");
       return;
     }
@@ -97,6 +98,7 @@ export default function ScanPage() {
     }
 
     start();
+
     return () => {
       try {
         codeReader.reset();
@@ -105,7 +107,7 @@ export default function ScanPage() {
   }, []);
 
   // -------------------------------------------------
-  // 4) SUMAR PUNTOS (ARREGLADO)
+  // 4) SUMAR PUNTOS (solo members, sin transactions por ahora)
   // -------------------------------------------------
   async function addPoints(delta = 10) {
     if (!scanned?.member?.id) return;
@@ -113,36 +115,21 @@ export default function ScanPage() {
     setBusy(true);
 
     const memberId = scanned.member.id;
-    const current = Number(scanned.member.points ?? 0);
-    const newPoints = current + delta;
-
-    console.log("Updating points:", { memberId, current, delta, newPoints });
+    const current = scanned.member.points ?? 0;
 
     const { error: upErr } = await supabase
       .from("members")
-      .update({ points: newPoints })
+      .update({ points: current + delta })
       .eq("id", memberId);
 
-    console.log("Update Error:", upErr);
-
-    const { error: txErr } = await supabase.from("transactions").insert([
-      {
-        member_id: memberId,
-        points_delta: delta,
-        reason: "scan_add",
-        source: "scan",
-      },
-    ]);
-
-    console.log("Transaction Error:", txErr);
-
-    // SOLO muestra error si existe un error real
-    if ((upErr && upErr.message) || (txErr && txErr.message)) {
+    if (upErr) {
+      console.error("UPDATE ERROR →", upErr);
       alert("Fehler beim Aktualisieren.");
       setBusy(false);
       return;
     }
 
+    // Refrescar datos del miembro
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
@@ -154,7 +141,7 @@ export default function ScanPage() {
   }
 
   // -------------------------------------------------
-  // 5) CANJEAR PREMIO (ARREGLADO)
+  // 5) CANJEAR PREMIO (también solo en members)
   // -------------------------------------------------
   async function redeemReward(rewardCost = 50) {
     if (!scanned?.member?.id) return;
@@ -162,7 +149,7 @@ export default function ScanPage() {
     setBusy(true);
 
     const memberId = scanned.member.id;
-    const current = Number(scanned.member.points ?? 0);
+    const current = scanned.member.points ?? 0;
 
     if (current < rewardCost) {
       alert("Nicht genug Punkte.");
@@ -170,27 +157,13 @@ export default function ScanPage() {
       return;
     }
 
-    const newPoints = current - rewardCost;
-
     const { error: upErr } = await supabase
       .from("members")
-      .update({ points: newPoints })
+      .update({ points: current - rewardCost })
       .eq("id", memberId);
 
-    console.log("Redeem Update Error:", upErr);
-
-    const { error: txErr } = await supabase.from("transactions").insert([
-      {
-        member_id: memberId,
-        points_delta: -rewardCost,
-        reason: "reward_redeem",
-        source: "scan",
-      },
-    ]);
-
-    console.log("Redeem Transaction Error:", txErr);
-
-    if ((upErr && upErr.message) || (txErr && txErr.message)) {
+    if (upErr) {
+      console.error("UPDATE ERROR →", upErr);
       alert("Fehler beim Einlösen.");
       setBusy(false);
       return;
