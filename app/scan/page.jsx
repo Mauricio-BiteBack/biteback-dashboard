@@ -13,31 +13,40 @@ const supabase = createClient(
 export default function ScanPage() {
   const router = useRouter();
 
-  const [scanned, setScanned] = useState(null); // { email, member }
+  const [scanned, setScanned] = useState(null);
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [rewards, setRewards] = useState([]);        // 🔥 NEW: Rewards dropdown
+  const [selectedReward, setSelectedReward] = useState(null);
 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
 
   // -------------------------------------------------
-  // 1) PROCESAR TEXTO DEL QR → EMAIL
+  // LOAD REWARDS
+  // -------------------------------------------------
+  async function loadRewards() {
+    const { data, error } = await supabase
+      .from("rewards")
+      .select("*")
+      .eq("active", true)
+      .order("cost", { ascending: true });
+
+    if (!error) setRewards(data || []);
+  }
+
+  // -------------------------------------------------
+  // PROCESAR QR → EMAIL
   // -------------------------------------------------
   async function handleRawText(text) {
-    let extracted = null;
-
-    if (text?.startsWith("BB:")) {
-      extracted = text.split("BB:")[1]?.trim();
-    } else {
-      extracted = text?.trim();
-    }
+    let extracted = text?.trim();
 
     if (!extracted) {
       alert("Ungültiger QR-Code.");
       return;
     }
 
-    // Buscar miembro por EMAIL
     const { data, error } = await supabase
       .from("members")
       .select("*")
@@ -59,17 +68,18 @@ export default function ScanPage() {
   }
 
   // -------------------------------------------------
-  // 2) VERIFICAR SESIÓN
+  // CHECK SESSION
   // -------------------------------------------------
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data?.session) router.replace("/auth");
+      else loadRewards(); // 🔥 Load rewards only when logged in
     })();
   }, [router]);
 
   // -------------------------------------------------
-  // 3) INICIALIZAR CÁMARA Y ESCÁNER
+  // CAMERA
   // -------------------------------------------------
   useEffect(() => {
     const codeReader = new BrowserMultiFormatReader();
@@ -84,10 +94,8 @@ export default function ScanPage() {
           return;
         }
 
-        const deviceId = devices[0].deviceId;
-
         const preview = await codeReader.decodeOnceFromVideoDevice(
-          deviceId,
+          devices[0].deviceId,
           videoRef.current
         );
 
@@ -98,7 +106,6 @@ export default function ScanPage() {
     }
 
     start();
-
     return () => {
       try {
         codeReader.reset();
@@ -107,33 +114,33 @@ export default function ScanPage() {
   }, []);
 
   // -------------------------------------------------
-  // 4) SUMAR PUNTOS (solo members, sin transactions por ahora)
+  // SUMAR PUNTOS
   // -------------------------------------------------
   async function addPoints(delta = 10) {
     if (!scanned?.member?.id) return;
-
     setBusy(true);
 
-    const memberId = scanned.member.id;
-    const current = scanned.member.points ?? 0;
+    const member = scanned.member;
+    const newPoints = member.points + delta;
 
     const { error: upErr } = await supabase
       .from("members")
-      .update({ points: current + delta })
-      .eq("id", memberId);
+      .update({ points: newPoints })
+      .eq("id", member.id);
 
-    if (upErr) {
-      console.error("UPDATE ERROR →", upErr);
-      alert("Fehler beim Aktualisieren.");
-      setBusy(false);
-      return;
-    }
+    await supabase.from("transactions").insert([
+      {
+        member_id: member.id,
+        points_added: delta,
+        reason: "scan_add",
+        source: "scan",
+      },
+    ]);
 
-    // Refrescar datos del miembro
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
-      .eq("id", memberId)
+      .eq("id", member.id)
       .maybeSingle();
 
     setScanned((prev) => ({ ...prev, member: refreshed }));
@@ -141,46 +148,53 @@ export default function ScanPage() {
   }
 
   // -------------------------------------------------
-  // 5) CANJEAR PREMIO (también solo en members)
+  // CANJEAR REWARD (desde dropdown)
   // -------------------------------------------------
-  async function redeemReward(rewardCost = 50) {
+  async function redeemSelectedReward() {
+    if (!selectedReward) return alert("Bitte Reward wählen.");
     if (!scanned?.member?.id) return;
 
     setBusy(true);
 
-    const memberId = scanned.member.id;
-    const current = scanned.member.points ?? 0;
+    const reward = selectedReward;
+    const member = scanned.member;
 
-    if (current < rewardCost) {
-      alert("Nicht genug Punkte.");
+    if (member.points < reward.cost) {
+      alert("Nicht genug Punkte!");
       setBusy(false);
       return;
     }
 
-    const { error: upErr } = await supabase
+    const newPoints = member.points - reward.cost;
+
+    await supabase
       .from("members")
-      .update({ points: current - rewardCost })
-      .eq("id", memberId);
+      .update({ points: newPoints })
+      .eq("id", member.id);
 
-    if (upErr) {
-      console.error("UPDATE ERROR →", upErr);
-      alert("Fehler beim Einlösen.");
-      setBusy(false);
-      return;
-    }
+    await supabase.from("transactions").insert([
+      {
+        member_id: member.id,
+        points_added: -reward.cost,
+        reason: "reward_redeem",
+        source: "scan",
+      },
+    ]);
 
     const { data: refreshed } = await supabase
       .from("members")
       .select("*")
-      .eq("id", memberId)
+      .eq("id", member.id)
       .maybeSingle();
 
     setScanned((prev) => ({ ...prev, member: refreshed }));
     setBusy(false);
+
+    alert(`Reward "${reward.name}" eingelöst!`);
   }
 
   // -------------------------------------------------
-  // 6) UI
+  // UI
   // -------------------------------------------------
   return (
     <main
@@ -189,7 +203,6 @@ export default function ScanPage() {
         backgroundColor: "#fffbf7",
         padding: "2rem",
         color: "#072049",
-        fontFamily: "Inter, sans-serif",
       }}
     >
       <h1 style={{ fontSize: "1.7rem", fontWeight: 800, marginBottom: "1rem" }}>
@@ -208,7 +221,7 @@ export default function ScanPage() {
             gap: "1.5rem",
           }}
         >
-          {/* VIDEO */}
+          {/* CAMERA */}
           <div
             style={{
               background: "white",
@@ -227,66 +240,89 @@ export default function ScanPage() {
                 background: "black",
               }}
             />
-            <p style={{ marginTop: "0.5rem", color: "#2a2a2e" }}>
-              Richte die Kamera auf den Kunden-QR.
-            </p>
+            <p style={{ marginTop: "0.5rem" }}>Richte die Kamera auf den QR.</p>
           </div>
 
-          {/* RESULTADO */}
+          {/* RESULT */}
           <div
             style={{
               background: "white",
               padding: "1.2rem",
               borderRadius: 16,
               boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-              minHeight: 240,
             }}
           >
             {!scanned ? (
-              <p style={{ color: "#2a2a2e" }}>
-                Noch nichts gescannt. Warte auf einen QR-Code…
-              </p>
+              <p>Warte auf QR-Code…</p>
             ) : scanned.member ? (
               <>
-                <h3 style={{ marginTop: 0, marginBottom: 4 }}>
+                <h3>
                   {scanned.member.first_name} {scanned.member.last_name}
                 </h3>
-                <p style={{ margin: 0 }}>{scanned.member.email}</p>
-                <p style={{ margin: "4px 0" }}>
-                  Punkte: <b>{scanned.member.points ?? 0}</b>
+                <p>{scanned.member.email}</p>
+                <p>
+                  Punkte: <b>{scanned.member.points}</b>
                 </p>
 
-                <div style={{ display: "flex", gap: "0.8rem", marginTop: 16 }}>
-                  <button
+                {/* +10 POINTS */}
+                <button
+                  onClick={() => addPoints(10)}
+                  disabled={busy}
+                  style={{
+                    marginTop: "1rem",
+                    background: busy ? "#ccc" : "#742cff",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "0.8rem 1.2rem",
+                    fontWeight: 600,
+                    cursor: busy ? "default" : "pointer",
+                    display: "block",
+                    width: "100%",
+                  }}
+                >
+                  +10 Punkte
+                </button>
+
+                {/* REWARD DROPDOWN */}
+                <div style={{ marginTop: "1rem" }}>
+                  <select
                     disabled={busy}
-                    onClick={() => addPoints(10)}
+                    onChange={(e) =>
+                      setSelectedReward(
+                        rewards.find((r) => r.id === e.target.value)
+                      )
+                    }
                     style={{
-                      background: busy ? "#ccc" : "#742cff",
-                      color: "white",
-                      borderRadius: 10,
-                      padding: "0.8rem 1.2rem",
-                      border: "none",
-                      fontWeight: 600,
-                      cursor: busy ? "default" : "pointer",
+                      width: "100%",
+                      padding: "0.6rem",
+                      borderRadius: 8,
+                      border: "1px solid #ccc",
                     }}
                   >
-                    +10 Punkte
-                  </button>
+                    <option value="">Reward wählen…</option>
+                    {rewards.map((rw) => (
+                      <option key={rw.id} value={rw.id}>
+                        {rw.name} ({rw.cost} Punkte)
+                      </option>
+                    ))}
+                  </select>
 
                   <button
+                    onClick={redeemSelectedReward}
                     disabled={busy}
-                    onClick={() => redeemReward(50)}
                     style={{
+                      marginTop: "0.8rem",
                       background: busy ? "#ccc" : "#fd6429",
-                      color: "white",
+                      color: "#fff",
+                      border: "none",
                       borderRadius: 10,
                       padding: "0.8rem 1.2rem",
-                      border: "none",
                       fontWeight: 600,
-                      cursor: busy ? "default" : "pointer",
+                      width: "100%",
                     }}
                   >
-                    50 einlösen
+                    Reward einlösen
                   </button>
                 </div>
               </>
