@@ -21,6 +21,9 @@ export default function RewardsPage() {
   const [redeemEmail, setRedeemEmail] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
 
+  // ---------------------------
+  // 1. VERIFY SESSION + LOAD DATA
+  // ---------------------------
   useEffect(() => {
     async function init() {
       const { data } = await supabase.auth.getSession();
@@ -44,13 +47,17 @@ export default function RewardsPage() {
     setLoading(false);
   }
 
-  // 🔥 1) Abrir modal
+  // ---------------------------
+  // 2. OPEN MODAL
+  // ---------------------------
   function openRedeemModal(reward) {
     setSelectedReward(reward);
     setShowRedeemModal(true);
   }
 
-  // 🔥 2) Ejecutar canje
+  // ---------------------------
+  // 3. REDEEM REWARD
+  // ---------------------------
   async function handleRedeemReward() {
     if (!redeemEmail) return alert("Bitte E-Mail eingeben.");
     setRedeemLoading(true);
@@ -69,7 +76,7 @@ export default function RewardsPage() {
         return;
       }
 
-      // 2. Validar puntos suficientes
+      // 2. Validar puntos
       if (memberData.points < selectedReward.cost) {
         alert("Nicht genug Punkte!");
         setRedeemLoading(false);
@@ -78,7 +85,7 @@ export default function RewardsPage() {
 
       const newPoints = memberData.points - selectedReward.cost;
 
-      // 3. Restar puntos
+      // 3. Restar puntos al miembro
       const { error: updateErr } = await supabase
         .from("members")
         .update({ points: newPoints })
@@ -90,7 +97,7 @@ export default function RewardsPage() {
         return;
       }
 
-      // 4. Insertar transacción
+      // 4. Registrar transacción
       await supabase.from("transactions").insert([
         {
           member_id: memberData.id,
@@ -100,7 +107,7 @@ export default function RewardsPage() {
         },
       ]);
 
-      // 5. Cerrar modal + refrescar
+      // 5. Reset modal + reload
       setShowRedeemModal(false);
       setRedeemEmail("");
       loadRewards();
@@ -114,6 +121,9 @@ export default function RewardsPage() {
     setRedeemLoading(false);
   }
 
+  // ---------------------------
+  // UI
+  // ---------------------------
   if (loading) {
     return (
       <main className="h-screen flex items-center justify-center text-2xl">
@@ -135,7 +145,7 @@ export default function RewardsPage() {
         BiteBack Belohnungen 🎁
       </h1>
 
-      {/* Tabla */}
+      {/* Rewards Table */}
       <section
         style={{
           backgroundColor: "white",
@@ -162,23 +172,13 @@ export default function RewardsPage() {
                 <td className="p-3">{r.name}</td>
                 <td className="p-3">{r.cost}</td>
                 <td className="p-3">{r.active ? "Aktiv" : "Inaktiv"}</td>
-
                 <td className="p-3">
-                  {/* 🔥 Einlösen */}
                   <button
                     onClick={() => openRedeemModal(r)}
                     className="px-3 py-1 rounded-md font-bold text-white mr-2"
                     style={{ backgroundColor: "#742cff" }}
                   >
                     Einlösen
-                  </button>
-
-                  {/* Deaktivieren */}
-                  <button
-                    className="px-3 py-1 rounded-md font-bold text-white"
-                    style={{ backgroundColor: "#072049" }}
-                  >
-                    Deaktivieren
                   </button>
                 </td>
               </tr>
@@ -187,11 +187,9 @@ export default function RewardsPage() {
         </table>
       </section>
 
-      {/* 🔥 MODAL DE REDEEM */}
+      {/* REDEEM MODAL */}
       {showRedeemModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">
               {selectedReward?.name} einlösen
