@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import NavBar from "@/components/NavBar"; // ⭐ INTEGRADO
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -97,13 +98,14 @@ export default function RewardsPage() {
         return;
       }
 
-      // 4. Registrar transacción
+      // 4. Registrar transacción (BITEBACK MODE 🔥)
       await supabase.from("transactions").insert([
         {
           member_id: memberData.id,
           points_added: -selectedReward.cost,
           reason: "reward_redeem",
           source: "dashboard",
+          amount: 0, // requerido por tu tabla
         },
       ]);
 
@@ -133,59 +135,50 @@ export default function RewardsPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#fffbf7",
-        padding: "3rem 2rem",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      <h1 className="text-3xl font-extrabold text-[#072049] mb-6">
-        BiteBack Belohnungen 🎁
-      </h1>
+    <main className="min-h-screen bg-[#fffbf7] font-[Inter] text-[#072049]">
+      {/* ⭐ NAVBAR ARRIBA ⭐ */}
+      <NavBar />
 
-      {/* Rewards Table */}
-      <section
-        style={{
-          backgroundColor: "white",
-          borderRadius: "16px",
-          padding: "2rem",
-        }}
-      >
-        <table className="w-full border-collapse">
-          <thead className="bg-purple-100">
-            <tr>
-              <th className="p-3 text-left">Name</th>
-              <th className="p-3 text-left">Kosten</th>
-              <th className="p-3 text-left">Status</th>
-              <th className="p-3 text-left">Aktion</th>
-            </tr>
-          </thead>
+      <div className="px-8 py-10 max-w-6xl mx-auto">
+        <h1 className="text-3xl font-extrabold text-[#072049] mb-8">
+          BiteBack Belohnungen 🎁
+        </h1>
 
-          <tbody>
-            {rewards.map((r, i) => (
-              <tr
-                key={r.id}
-                className={i % 2 === 0 ? "bg-white" : "bg-purple-50"}
-              >
-                <td className="p-3">{r.name}</td>
-                <td className="p-3">{r.cost}</td>
-                <td className="p-3">{r.active ? "Aktiv" : "Inaktiv"}</td>
-                <td className="p-3">
-                  <button
-                    onClick={() => openRedeemModal(r)}
-                    className="px-3 py-1 rounded-md font-bold text-white mr-2"
-                    style={{ backgroundColor: "#742cff" }}
-                  >
-                    Einlösen
-                  </button>
-                </td>
+        {/* Rewards Table */}
+        <section className="bg-white rounded-2xl p-6 shadow-md">
+          <table className="w-full border-collapse">
+            <thead className="bg-purple-100">
+              <tr>
+                <th className="p-3 text-left">Name</th>
+                <th className="p-3 text-left">Kosten</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Aktion</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+
+            <tbody>
+              {rewards.map((r, i) => (
+                <tr
+                  key={r.id}
+                  className={i % 2 === 0 ? "bg-white" : "bg-purple-50"}
+                >
+                  <td className="p-3">{r.name}</td>
+                  <td className="p-3">{r.cost}</td>
+                  <td className="p-3">{r.active ? "Aktiv" : "Inaktiv"}</td>
+                  <td className="p-3">
+                    <button
+                      onClick={() => openRedeemModal(r)}
+                      className="px-3 py-1 rounded-md font-bold text-white mr-2 bg-[#742cff] hover:bg-[#fd6429]"
+                    >
+                      Einlösen
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
 
       {/* REDEEM MODAL */}
       {showRedeemModal && (
@@ -216,10 +209,9 @@ export default function RewardsPage() {
               <button
                 onClick={handleRedeemReward}
                 disabled={redeemLoading}
-                className="px-4 py-2 rounded font-bold text-white"
-                style={{
-                  backgroundColor: redeemLoading ? "#aaa" : "#742cff",
-                }}
+                className={`px-4 py-2 rounded font-bold text-white ${
+                  redeemLoading ? "bg-gray-400" : "bg-[#742cff] hover:bg-[#fd6429]"
+                }`}
               >
                 {redeemLoading ? "..." : "Bestätigen"}
               </button>

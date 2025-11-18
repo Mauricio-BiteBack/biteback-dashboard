@@ -1,7 +1,9 @@
 "use client";
+
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import NavBar from "@/components/NavBar";   // ✅ AÑADIDO: NAVBAR
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -74,13 +76,13 @@ export default function MembersPage() {
         return;
       }
 
-      // 2️⃣ Registrar transacción (FINAL)
+      // 2️⃣ Registrar transacción
       const { error: txErr } = await supabase.from("transactions").insert([
         {
           member_id: memberId,
-          points_added: 10, // 👍 columna real
+          points_added: 10, // 👍 correcto
           amount: 0, // 👍 requerido en tu tabla
-          source: "dashboard", // 👍 válido con tu schema
+          source: "dashboard", // 👍 funciona con tu schema
         },
       ]);
 
@@ -100,17 +102,7 @@ export default function MembersPage() {
 
   if (loading) {
     return (
-      <main
-        style={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#fffbf7",
-          color: "#072049",
-          fontFamily: "Inter, sans-serif",
-        }}
-      >
+      <main className="h-screen flex items-center justify-center bg-[#fffbf7] text-[#072049] font-[Inter]">
         <h2>Wird geladen...</h2>
       </main>
     );
@@ -123,57 +115,47 @@ export default function MembersPage() {
         backgroundColor: "#fffbf7",
         fontFamily: "Inter, sans-serif",
         color: "#072049",
-        padding: "3rem 2rem",
+        paddingBottom: "4rem",
       }}
     >
-      <h1 className="text-bitepurple text-3xl font-bold mb-8">
-        ✅ Tailwind funktioniert!
-      </h1>
+      {/* ⭐⭐⭐ NAVBAR INTEGRADA ⭐⭐⭐ */}
+      <NavBar />
 
-      {/* Header */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "2.5rem",
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontSize: "2.2rem",
-              fontWeight: "800",
-              margin: 0,
-              color: "#072049",
-            }}
-          >
-            BiteBack Mitglieder
-          </h1>
-          <p style={{ color: "#2a2a2e", marginTop: "0.5rem", fontSize: "1rem" }}>
-            Verwalte und analysiere deine Kunden in Echtzeit 🍽️
-          </p>
-        </div>
+      <div style={{ padding: "3rem 2rem" }}>
+        <h1 className="text-bitepurple text-3xl font-bold mb-8">
+          BiteBack Mitglieder
+        </h1>
 
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <button
-            style={{
-              backgroundColor: "#742cff",
-              border: "none",
-              borderRadius: "10px",
-              color: "white",
-              fontWeight: "600",
-              padding: "0.8rem 1.6rem",
-              cursor: "pointer",
-              fontSize: "0.95rem",
-              boxShadow: "0 4px 12px rgba(116,44,255,0.25)",
-              transition: "0.3s ease",
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = "#fd6429")}
-            onMouseOut={(e) => (e.target.style.backgroundColor = "#742cff")}
-          >
-            + Neues Mitglied
-          </button>
+        {/* Header */}
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "2.5rem",
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                fontSize: "2.2rem",
+                fontWeight: "800",
+                margin: 0,
+                color: "#072049",
+              }}
+            >
+              Kundenübersicht
+            </h1>
+            <p
+              style={{
+                color: "#2a2a2e",
+                marginTop: "0.5rem",
+                fontSize: "1rem",
+              }}
+            >
+              Verwalte und analysiere deine Kunden in Echtzeit 🍽️
+            </p>
+          </div>
 
           <button
             style={{
@@ -186,114 +168,92 @@ export default function MembersPage() {
               cursor: "pointer",
               fontSize: "0.95rem",
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              transition: "0.3s ease",
             }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = "#fd6429")}
-            onMouseOut={(e) => (e.target.style.backgroundColor = "#2a2a2e")}
             onClick={handleLogout}
           >
             Abmelden
           </button>
-        </div>
-      </header>
+        </header>
 
-      {/* Tabelle */}
-      <section
-        style={{
-          backgroundColor: "white",
-          borderRadius: "16px",
-          boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-          padding: "2rem",
-        }}
-      >
-        {members.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#2a2a2e" }}>
-            Keine Mitglieder gefunden.
-          </p>
-        ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.95rem",
-            }}
-          >
-            <thead style={{ backgroundColor: "#f4f2ff" }}>
-              <tr>
-                <th style={thStyle}>E-Mail</th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Telefon</th>
-                <th style={thStyle}>Stufe</th>
-                <th style={thStyle}>Punkte</th>
-                <th style={thStyle}>Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m, i) => (
-                <tr
-                  key={m.id}
-                  style={{
-                    backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8f6ff",
-                    transition: "0.2s",
-                  }}
-                >
-                  <td style={tdStyle}>{m.email}</td>
-                  <td style={tdStyle}>
-                    {m.first_name} {m.last_name}
-                  </td>
-                  <td style={tdStyle}>{m.phone}</td>
-                  <td
+        {/* Tabla */}
+        <section
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
+            padding: "2rem",
+          }}
+        >
+          {members.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#2a2a2e" }}>
+              Keine Mitglieder gefunden.
+            </p>
+          ) : (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "0.95rem",
+              }}
+            >
+              <thead style={{ backgroundColor: "#f4f2ff" }}>
+                <tr>
+                  <th style={thStyle}>E-Mail</th>
+                  <th style={thStyle}>Name</th>
+                  <th style={thStyle}>Telefon</th>
+                  <th style={thStyle}>Stufe</th>
+                  <th style={thStyle}>Punkte</th>
+                  <th style={thStyle}>Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m, i) => (
+                  <tr
+                    key={m.id}
                     style={{
-                      ...tdStyle,
-                      color: "#fd6429",
-                      fontWeight: "600",
-                      textTransform: "capitalize",
+                      backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8f6ff",
                     }}
                   >
-                    {m.tier}
-                  </td>
-                  <td style={tdStyle}>{m.points ?? 0}</td>
-                  <td style={tdStyle}>
-                    <button
-                      onClick={() => handleAddPoints(m.id, m.points)}
+                    <td style={tdStyle}>{m.email}</td>
+                    <td style={tdStyle}>
+                      {m.first_name} {m.last_name}
+                    </td>
+                    <td style={tdStyle}>{m.phone}</td>
+                    <td
                       style={{
-                        backgroundColor: "#742cff",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        padding: "0.4rem 0.8rem",
-                        cursor: "pointer",
+                        ...tdStyle,
+                        color: "#fd6429",
                         fontWeight: "600",
-                        transition: "0.2s ease",
+                        textTransform: "capitalize",
                       }}
-                      onMouseOver={(e) =>
-                        (e.target.style.backgroundColor = "#fd6429")
-                      }
-                      onMouseOut={(e) =>
-                        (e.target.style.backgroundColor = "#742cff")
-                      }
                     >
-                      +10 Punkte
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+                      {m.tier}
+                    </td>
+                    <td style={tdStyle}>{m.points ?? 0}</td>
 
-      <footer
-        style={{
-          marginTop: "3rem",
-          textAlign: "center",
-          color: "#2a2a2e",
-          opacity: 0.7,
-          fontSize: "0.85rem",
-        }}
-      >
-        © {new Date().getFullYear()} BiteBack
-      </footer>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handleAddPoints(m.id, m.points)}
+                        style={{
+                          backgroundColor: "#742cff",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "0.4rem 0.8rem",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                        }}
+                      >
+                        +10 Punkte
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

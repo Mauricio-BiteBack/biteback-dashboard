@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import NavBar from "@/components/NavBar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -17,15 +18,14 @@ export default function ScanPage() {
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [rewards, setRewards] = useState([]);        // 🔥 NEW: Rewards dropdown
+  const [rewards, setRewards] = useState([]);
   const [selectedReward, setSelectedReward] = useState(null);
 
   const videoRef = useRef(null);
-  const codeReaderRef = useRef(null);
 
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   // LOAD REWARDS
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   async function loadRewards() {
     const { data, error } = await supabase
       .from("rewards")
@@ -36,9 +36,9 @@ export default function ScanPage() {
     if (!error) setRewards(data || []);
   }
 
-  // -------------------------------------------------
-  // PROCESAR QR → EMAIL
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
+  // PROCESS QR → EMAIL
+  // --------------------------------------------------------------------
   async function handleRawText(text) {
     let extracted = text?.trim();
 
@@ -67,23 +67,22 @@ export default function ScanPage() {
     setScanned({ email: extracted, member: data });
   }
 
-  // -------------------------------------------------
-  // CHECK SESSION
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
+  // CHECK SESSION + LOAD REWARDS
+  // --------------------------------------------------------------------
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data?.session) router.replace("/auth");
-      else loadRewards(); // 🔥 Load rewards only when logged in
+      else loadRewards();
     })();
   }, [router]);
 
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   // CAMERA
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   useEffect(() => {
-    const codeReader = new BrowserMultiFormatReader();
-    codeReaderRef.current = codeReader;
+    const reader = new BrowserMultiFormatReader();
 
     async function start() {
       try {
@@ -94,38 +93,41 @@ export default function ScanPage() {
           return;
         }
 
-        const preview = await codeReader.decodeOnceFromVideoDevice(
-          devices[0].deviceId,
+        const videoDeviceId = devices[0].deviceId;
+
+        const result = await reader.decodeOnceFromVideoDevice(
+          videoDeviceId,
           videoRef.current
         );
 
-        handleRawText(preview.getText());
+        handleRawText(result.getText());
       } catch (e) {
         setCameraError(String(e?.message ?? e));
       }
     }
 
     start();
+
     return () => {
       try {
-        codeReader.reset();
+        reader.reset();
       } catch {}
     };
   }, []);
 
-  // -------------------------------------------------
-  // SUMAR PUNTOS
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
+  // ADD POINTS
+  // --------------------------------------------------------------------
   async function addPoints(delta = 10) {
     if (!scanned?.member?.id) return;
     setBusy(true);
 
     const member = scanned.member;
-    const newPoints = member.points + delta;
+    const updatedPoints = member.points + delta;
 
-    const { error: upErr } = await supabase
+    await supabase
       .from("members")
-      .update({ points: newPoints })
+      .update({ points: updatedPoints })
       .eq("id", member.id);
 
     await supabase.from("transactions").insert([
@@ -134,6 +136,7 @@ export default function ScanPage() {
         points_added: delta,
         reason: "scan_add",
         source: "scan",
+        amount: 0, // requerido por tu tabla
       },
     ]);
 
@@ -143,13 +146,13 @@ export default function ScanPage() {
       .eq("id", member.id)
       .maybeSingle();
 
-    setScanned((prev) => ({ ...prev, member: refreshed }));
+    setScanned({ ...scanned, member: refreshed });
     setBusy(false);
   }
 
-  // -------------------------------------------------
-  // CANJEAR REWARD (desde dropdown)
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
+  // REDEEM SELECTED REWARD
+  // --------------------------------------------------------------------
   async function redeemSelectedReward() {
     if (!selectedReward) return alert("Bitte Reward wählen.");
     if (!scanned?.member?.id) return;
@@ -165,11 +168,11 @@ export default function ScanPage() {
       return;
     }
 
-    const newPoints = member.points - reward.cost;
+    const updated = member.points - reward.cost;
 
     await supabase
       .from("members")
-      .update({ points: newPoints })
+      .update({ points: updated })
       .eq("id", member.id);
 
     await supabase.from("transactions").insert([
@@ -178,6 +181,7 @@ export default function ScanPage() {
         points_added: -reward.cost,
         reason: "reward_redeem",
         source: "scan",
+        amount: 0,
       },
     ]);
 
@@ -187,153 +191,102 @@ export default function ScanPage() {
       .eq("id", member.id)
       .maybeSingle();
 
-    setScanned((prev) => ({ ...prev, member: refreshed }));
+    setScanned({ ...scanned, member: refreshed });
     setBusy(false);
-
     alert(`Reward "${reward.name}" eingelöst!`);
   }
 
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   // UI
-  // -------------------------------------------------
+  // --------------------------------------------------------------------
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#fffbf7",
-        padding: "2rem",
-        color: "#072049",
-      }}
-    >
-      <h1 style={{ fontSize: "1.7rem", fontWeight: 800, marginBottom: "1rem" }}>
-        QR-Scan · Punkte & Einlösen
-      </h1>
+    <main className="min-h-screen bg-[#fffbf7] font-[Inter] text-[#072049]">
+      <NavBar />
 
-      {cameraError ? (
-        <div style={{ color: "#fd6429", fontWeight: 600 }}>
-          Kamerafehler: {cameraError}
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1.5rem",
-          }}
-        >
-          {/* CAMERA */}
-          <div
-            style={{
-              background: "white",
-              padding: "1rem",
-              borderRadius: 16,
-              boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-            }}
-          >
-            <video
-              ref={videoRef}
-              muted
-              playsInline
-              style={{
-                width: "100%",
-                borderRadius: 12,
-                background: "black",
-              }}
-            />
-            <p style={{ marginTop: "0.5rem" }}>Richte die Kamera auf den QR.</p>
-          </div>
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        <h1 className="text-3xl font-extrabold mb-6">QR-Scan · Punkte & Einlösen</h1>
 
-          {/* RESULT */}
-          <div
-            style={{
-              background: "white",
-              padding: "1.2rem",
-              borderRadius: 16,
-              boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
-            }}
-          >
-            {!scanned ? (
-              <p>Warte auf QR-Code…</p>
-            ) : scanned.member ? (
-              <>
-                <h3>
-                  {scanned.member.first_name} {scanned.member.last_name}
-                </h3>
-                <p>{scanned.member.email}</p>
-                <p>
-                  Punkte: <b>{scanned.member.points}</b>
-                </p>
+        {cameraError ? (
+          <div className="text-red-500 font-bold">{cameraError}</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-6">
+            {/* CAMERA */}
+            <div className="bg-white p-4 rounded-xl shadow-md">
+              <video
+                ref={videoRef}
+                muted
+                playsInline
+                className="w-full rounded-lg bg-black"
+              />
+              <p className="mt-2">Richte die Kamera auf den QR.</p>
+            </div>
 
-                {/* +10 POINTS */}
-                <button
-                  onClick={() => addPoints(10)}
-                  disabled={busy}
-                  style={{
-                    marginTop: "1rem",
-                    background: busy ? "#ccc" : "#742cff",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "0.8rem 1.2rem",
-                    fontWeight: 600,
-                    cursor: busy ? "default" : "pointer",
-                    display: "block",
-                    width: "100%",
-                  }}
-                >
-                  +10 Punkte
-                </button>
+            {/* RESULT */}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              {!scanned ? (
+                <p>Warte auf QR-Code…</p>
+              ) : scanned.member ? (
+                <>
+                  <h3 className="font-bold text-lg">
+                    {scanned.member.first_name} {scanned.member.last_name}
+                  </h3>
+                  <p>{scanned.member.email}</p>
+                  <p className="mt-2">
+                    Punkte: <b>{scanned.member.points}</b>
+                  </p>
 
-                {/* REWARD DROPDOWN */}
-                <div style={{ marginTop: "1rem" }}>
-                  <select
-                    disabled={busy}
-                    onChange={(e) =>
-                      setSelectedReward(
-                        rewards.find((r) => r.id === e.target.value)
-                      )
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem",
-                      borderRadius: 8,
-                      border: "1px solid #ccc",
-                    }}
-                  >
-                    <option value="">Reward wählen…</option>
-                    {rewards.map((rw) => (
-                      <option key={rw.id} value={rw.id}>
-                        {rw.name} ({rw.cost} Punkte)
-                      </option>
-                    ))}
-                  </select>
-
+                  {/* +10 BUTTON */}
                   <button
-                    onClick={redeemSelectedReward}
+                    onClick={() => addPoints(10)}
                     disabled={busy}
-                    style={{
-                      marginTop: "0.8rem",
-                      background: busy ? "#ccc" : "#fd6429",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 10,
-                      padding: "0.8rem 1.2rem",
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
+                    className={`w-full mt-4 py-3 rounded-lg font-bold text-white ${
+                      busy ? "bg-gray-400" : "bg-[#742cff] hover:bg-[#fd6429]"
+                    }`}
                   >
-                    Reward einlösen
+                    +10 Punkte
                   </button>
-                </div>
-              </>
-            ) : (
-              <p style={{ color: "#fd6429" }}>
-                Mitglied mit Email <b>{scanned.email}</b> nicht gefunden.
-              </p>
-            )}
+
+                  {/* REWARD DROPDOWN */}
+                  <div className="mt-4">
+                    <select
+                      disabled={busy}
+                      className="w-full p-3 rounded-lg border"
+                      onChange={(e) =>
+                        setSelectedReward(
+                          rewards.find((r) => r.id === e.target.value)
+                        )
+                      }
+                    >
+                      <option value="">Reward wählen…</option>
+                      {rewards.map((rw) => (
+                        <option key={rw.id} value={rw.id}>
+                          {rw.name} ({rw.cost} Punkte)
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={redeemSelectedReward}
+                      disabled={busy}
+                      className={`w-full mt-3 py-3 rounded-lg font-bold text-white ${
+                        busy
+                          ? "bg-gray-400"
+                          : "bg-[#fd6429] hover:bg-red-500"
+                      }`}
+                    >
+                      Reward einlösen
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-red-500">
+                  Mitglied mit Email <b>{scanned.email}</b> nicht gefunden.
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
