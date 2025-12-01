@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import NavBar from "../components/NavBar"; // ✅ RUTA CORRECTA DESDE /app/scan
+import NavBar from "../components/NavBar"; // ✅ ruta correcta desde /app/scan
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -33,14 +33,16 @@ export default function ScanPage() {
       .eq("active", true)
       .order("cost", { ascending: true });
 
-    if (!error) setRewards(data || []);
+    if (!error) {
+      setRewards(data || []);
+    }
   }
 
   // --------------------------------------------------------------------
   // PROCESS QR → EMAIL
   // --------------------------------------------------------------------
   async function handleRawText(text) {
-    let extracted = text?.trim();
+    const extracted = text?.trim();
 
     if (!extracted) {
       alert("Ungültiger QR-Code.");
@@ -73,8 +75,11 @@ export default function ScanPage() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (!data?.session) router.replace("/auth");
-      else loadRewards();
+      if (!data?.session) {
+        router.replace("/auth");
+      } else {
+        loadRewards();
+      }
     })();
   }, [router]);
 
@@ -111,7 +116,9 @@ export default function ScanPage() {
     return () => {
       try {
         reader.reset();
-      } catch {}
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
@@ -120,6 +127,7 @@ export default function ScanPage() {
   // --------------------------------------------------------------------
   async function addPoints(delta = 10) {
     if (!scanned?.member?.id) return;
+
     setBusy(true);
 
     const member = scanned.member;
@@ -138,7 +146,7 @@ export default function ScanPage() {
         source: "scan",
         amount: 0, // requerido por tu tabla
       },
-    });
+    ]);
 
     const { data: refreshed } = await supabase
       .from("members")
@@ -154,7 +162,10 @@ export default function ScanPage() {
   // REDEEM SELECTED REWARD
   // --------------------------------------------------------------------
   async function redeemSelectedReward() {
-    if (!selectedReward) return alert("Bitte Reward wählen.");
+    if (!selectedReward) {
+      alert("Bitte Reward wählen.");
+      return;
+    }
     if (!scanned?.member?.id) return;
 
     setBusy(true);
@@ -168,11 +179,11 @@ export default function ScanPage() {
       return;
     }
 
-    const updated = member.points - reward.cost;
+    const updatedPoints = (member.points ?? 0) - reward.cost;
 
     await supabase
       .from("members")
-      .update({ points: updated })
+      .update({ points: updatedPoints })
       .eq("id", member.id);
 
     await supabase.from("transactions").insert([
@@ -183,7 +194,7 @@ export default function ScanPage() {
         source: "scan",
         amount: 0,
       },
-    });
+    ]);
 
     const { data: refreshed } = await supabase
       .from("members")
