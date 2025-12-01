@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import NavBar from "@/components/NavBar";
+import NavBar from "../components/NavBar"; // ✅ RUTA CORRECTA DESDE /app/scan
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -123,7 +123,7 @@ export default function ScanPage() {
     setBusy(true);
 
     const member = scanned.member;
-    const updatedPoints = member.points + delta;
+    const updatedPoints = (member.points ?? 0) + delta;
 
     await supabase
       .from("members")
@@ -138,7 +138,7 @@ export default function ScanPage() {
         source: "scan",
         amount: 0, // requerido por tu tabla
       },
-    ]);
+    });
 
     const { data: refreshed } = await supabase
       .from("members")
@@ -162,7 +162,7 @@ export default function ScanPage() {
     const reward = selectedReward;
     const member = scanned.member;
 
-    if (member.points < reward.cost) {
+    if ((member.points ?? 0) < reward.cost) {
       alert("Nicht genug Punkte!");
       setBusy(false);
       return;
@@ -183,7 +183,7 @@ export default function ScanPage() {
         source: "scan",
         amount: 0,
       },
-    ]);
+    });
 
     const { data: refreshed } = await supabase
       .from("members")
@@ -204,7 +204,9 @@ export default function ScanPage() {
       <NavBar />
 
       <div className="max-w-6xl mx-auto px-8 py-10">
-        <h1 className="text-3xl font-extrabold mb-6">QR-Scan · Punkte & Einlösen</h1>
+        <h1 className="text-3xl font-extrabold mb-6">
+          QR-Scan · Punkte & Einlösen
+        </h1>
 
         {cameraError ? (
           <div className="text-red-500 font-bold">{cameraError}</div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import NavBar from "@/components/NavBar"; // ⭐ INTEGRADO
+import NavBar from "../components/NavBar"; // ✅ RUTA CORRECTA (desde /app/rewards)
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -98,7 +98,7 @@ export default function RewardsPage() {
         return;
       }
 
-      // 4. Registrar transacción (BITEBACK MODE 🔥)
+      // 4. Registrar transacción
       await supabase.from("transactions").insert([
         {
           member_id: memberData.id,

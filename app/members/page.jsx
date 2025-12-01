@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import NavBar from "@/components/NavBar";   // ✅ AÑADIDO: NAVBAR
+import NavBar from "../components/NavBar"; // ✅ RUTA CORRECTA
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -80,9 +80,9 @@ export default function MembersPage() {
       const { error: txErr } = await supabase.from("transactions").insert([
         {
           member_id: memberId,
-          points_added: 10, // 👍 correcto
-          amount: 0, // 👍 requerido en tu tabla
-          source: "dashboard", // 👍 funciona con tu schema
+          points_added: 10,
+          amount: 0,
+          source: "dashboard",
         },
       ]);
 
