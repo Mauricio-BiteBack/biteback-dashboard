@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import NavBar from "@/components/NavBar"; // ✅ INTEGRADO
+import NavBar from "../components/NavBar"; // ✅ RUTA CORRECTA DESDE /app/transactions
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +29,7 @@ export default function TransactionsPage() {
       fetchTransactions();
     }
     load();
-  }, []);
+  }, [router]);
 
   // ------------------------
   //  Cargar transacciones
@@ -61,9 +61,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <main
-      className="min-h-screen bg-[#fffbf7] font-[Inter] text-[#072049]"
-    >
+    <main className="min-h-screen bg-[#fffbf7] font-[Inter] text-[#072049]">
       {/* ⭐⭐⭐ NAVBAR ARRIBA ⭐⭐⭐ */}
       <NavBar />
 
@@ -99,9 +97,7 @@ export default function TransactionsPage() {
 
                   <td
                     className={`p-3 font-bold ${
-                      t.points_added < 0
-                        ? "text-red-500"
-                        : "text-bitepurple"
+                      t.points_added < 0 ? "text-red-500" : "text-bitepurple"
                     }`}
                   >
                     {t.points_added > 0
