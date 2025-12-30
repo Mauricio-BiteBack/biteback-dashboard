@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import Topbar from "../components/Topbar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +28,7 @@ export default function TransactionsPage() {
       fetchTransactions();
     }
     load();
-  }, []);
+  }, [router]);
 
   // ------------------------
   // Cargar transacciones
@@ -62,14 +61,14 @@ export default function TransactionsPage() {
 
   return (
     <main className="px-8 py-6">
-      <Topbar />
-
       <h1 className="text-3xl font-extrabold text-bitepurple mb-6">
         Transaktionen
       </h1>
 
       {transactions.length === 0 ? (
-        <p className="text-lg text-gray-600">Keine Transaktionen gefunden.</p>
+        <p className="text-lg text-gray-600">
+          Keine Transaktionen gefunden.
+        </p>
       ) : (
         <table className="w-full border-collapse shadow-sm rounded-lg overflow-hidden">
           <thead className="bg-purple-100 text-gray-800">
@@ -90,15 +89,12 @@ export default function TransactionsPage() {
                 <td className="p-3">
                   {new Date(t.created_at).toLocaleString("de-DE")}
                 </td>
-
                 <td className="p-3">{t.members?.email ?? "–"}</td>
-
                 <td className="p-3 font-bold text-bitepurple">
                   {t.points_added > 0
                     ? `+${t.points_added}`
                     : t.points_added}
                 </td>
-
                 <td className="p-3">{t.source ?? "–"}</td>
               </tr>
             ))}
