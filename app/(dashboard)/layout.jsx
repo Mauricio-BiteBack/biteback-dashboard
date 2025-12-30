@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "../lib/supabaseClient"; // usa tu cliente actual (el que ya funcionaba)
-import Sidebar from "../components/Sidebar"; // ajusta si tu path es distinto
+import { createClient } from "@supabase/supabase-js";
+import Sidebar from "../../components/Sidebar"; // path correcto desde (dashboard)
+
+/* Cliente Supabase INLINE (sin lib, sin archivos raros) */
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -15,23 +21,32 @@ export default function DashboardLayout({ children }) {
 
     const boot = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!ignore && !data?.session) router.replace("/auth");
+
+      if (!ignore && !data?.session) {
+        router.replace("/auth");
+        return;
+      }
+
       if (!ignore) setLoading(false);
     };
 
     boot();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) router.replace("/auth");
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session) router.replace("/auth");
+      }
+    );
 
     return () => {
       ignore = true;
-      sub?.subscription?.unsubscribe();
+      listener?.subscription?.unsubscribe();
     };
   }, [router, pathname]);
 
-  if (loading) return <div style={{ padding: 40 }}>Wird geladen…</div>;
+  if (loading) {
+    return <div style={{ padding: 40 }}>Wird geladen…</div>;
+  }
 
   return (
     <div style={{ display: "flex" }}>
