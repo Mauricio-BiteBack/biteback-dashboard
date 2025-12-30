@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import Sidebar from "../../components/Sidebar"; // path correcto desde (dashboard)
+import Sidebar from "../components/Sidebar"; // ✅ PATH CORRECTO
 
 /* Cliente Supabase INLINE (sin lib, sin archivos raros) */
 const supabase = createClient(
