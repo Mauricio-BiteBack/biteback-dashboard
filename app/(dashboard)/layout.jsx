@@ -41,14 +41,14 @@ export default function DashboardLayout({ children }) {
   if (loading) return <div className="p-10">Wird geladen…</div>;
 
   return (
-    <div className="min-h-screen bg-[#fffbf7]">
-      {/* Sidebar: solo desktop */}
+    <div className="min-h-screen bg-[#fffbf7] overflow-x-hidden">
+      {/* Sidebar: desktop */}
       <div className="hidden md:block">
         <Sidebar />
       </div>
 
-      {/* Main: ocupa full en mobile, se corre en desktop */}
-      <main className="min-h-screen md:ml-56 px-4 sm:px-8 py-8">
+      {/* Main: full en mobile, desplazado en desktop */}
+      <main className="min-h-screen w-full md:ml-56 px-4 sm:px-8 py-8">
         <div className="max-w-6xl mx-auto w-full">{children}</div>
       </main>
     </div>
