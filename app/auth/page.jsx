@@ -15,45 +15,46 @@ export default function AuthPage() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1️⃣ Obtener sesión inicial
   useEffect(() => {
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data?.session || null);
-      setLoading(false);
-    };
-    getSession();
+    let ignore = false;
 
-    // 2️⃣ Escuchar cambios de autenticación
+    const boot = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!ignore) {
+        if (error) console.error("❌ Auth getSession error:", error);
+        setSession(data?.session || null);
+        setLoading(false);
+      }
+    };
+
+    boot();
+
     const { data: subscription } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("🔄 Auth event:", event);
+      (event, session) => {
+        if (ignore) return;
+
         setSession(session);
 
         if (event === "SIGNED_IN") {
-          console.log("✅ Login exitoso → redirigiendo...");
-          router.push("/members");
+          router.replace("/members");
         }
 
         if (event === "SIGNED_OUT") {
-          console.log("🚪 Sesión cerrada → redirigiendo...");
-          router.push("/auth");
+          router.replace("/auth");
         }
       }
     );
 
-    return () => subscription.subscription.unsubscribe();
+    return () => {
+      ignore = true;
+      subscription?.subscription?.unsubscribe();
+    };
   }, [router]);
 
-  // 3️⃣ Redirigir automáticamente si ya está logueado
   useEffect(() => {
-    if (session) {
-      console.log("➡️ Usuario ya logueado → redirigiendo...");
-      router.push("/members");
-    }
+    if (session) router.replace("/members");
   }, [session, router]);
 
-  // 4️⃣ Mostrar carga
   if (loading) {
     return (
       <div
@@ -70,7 +71,6 @@ export default function AuthPage() {
     );
   }
 
-  // 5️⃣ Render del formulario de login
   return (
     <main
       style={{
@@ -89,6 +89,7 @@ export default function AuthPage() {
           borderRadius: "20px",
           boxShadow: "0 6px 25px rgba(7,32,73,0.08)",
           width: "400px",
+          maxWidth: "92vw",
         }}
       >
         <h1
@@ -129,7 +130,6 @@ export default function AuthPage() {
             },
           }}
           providers={[]}
-          redirectTo="http://localhost:3000/members"
         />
 
         <p
