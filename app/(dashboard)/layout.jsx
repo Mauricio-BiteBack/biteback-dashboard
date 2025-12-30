@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import Sidebar from "../components/Sidebar";
 
@@ -12,7 +12,6 @@ const supabase = createClient(
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,20 +36,20 @@ export default function DashboardLayout({ children }) {
       ignore = true;
       sub?.subscription?.unsubscribe();
     };
-  }, [router, pathname]);
+  }, [router]);
 
   if (loading) return <div className="p-10">Wird geladen…</div>;
 
   return (
     <div className="min-h-screen bg-[#fffbf7]">
-      {/* Sidebar solo desktop */}
+      {/* Sidebar: solo desktop */}
       <div className="hidden md:block">
         <Sidebar />
       </div>
 
-      {/* Main: se desplaza cuando hay sidebar */}
-      <main className="md:ml-56 px-4 sm:px-8 py-8">
-        <div className="max-w-6xl mx-auto">{children}</div>
+      {/* Main: ocupa full en mobile, se corre en desktop */}
+      <main className="min-h-screen md:ml-56 px-4 sm:px-8 py-8">
+        <div className="max-w-6xl mx-auto w-full">{children}</div>
       </main>
     </div>
   );
